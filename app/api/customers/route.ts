@@ -43,25 +43,21 @@ export async function GET(request: Request) {
         const successfulTransactions =
           transactions.filter(
             (transaction) =>
-              transaction.status ===
-              "SUCCESS"
+              transaction.status === "SUCCESS"
           ).length;
 
         const previousFailures =
           transactions.filter(
             (transaction) =>
-              transaction.status ===
-                "FAILED" ||
-              transaction.status ===
-                "ABANDONED"
+              transaction.status === "FAILED" ||
+              transaction.status === "ABANDONED"
           ).length;
 
         const totalSpent =
           transactions
             .filter(
               (transaction) =>
-                transaction.status ===
-                "SUCCESS"
+                transaction.status === "SUCCESS"
             )
             .reduce(
               (sum, transaction) =>
@@ -72,8 +68,7 @@ export async function GET(request: Request) {
         const revenueAtRisk =
           transactions.reduce(
             (sum, transaction) =>
-              sum +
-              transaction.revenueAtRisk,
+              sum + transaction.revenueAtRisk,
             0
           );
 
@@ -84,7 +79,11 @@ export async function GET(request: Request) {
 
           email: customer.email,
 
-          segment: customer.segment,
+          // Prisma field is customerSegment.
+          // API continues exposing it as "segment"
+          // so the existing frontend remains compatible.
+          segment:
+            customer.customerSegment || "REGULAR",
 
           lifetimeValue:
             customer.lifetimeValue,

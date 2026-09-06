@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Suspense,
   useEffect,
   useMemo,
   useState,
@@ -86,7 +87,7 @@ type Transaction = {
    PAGE
 ========================================================== */
 
-export default function TransactionsPage() {
+function TransactionsPageContent() {
 
   const searchParams =
     useSearchParams();
@@ -1441,4 +1442,25 @@ function formatCurrency(
       maximumFractionDigits: 0,
     }
   ).format(value);
+}
+
+
+/* ==========================================================
+   PRODUCTION SUSPENSE BOUNDARY
+   Next.js 16 requires useSearchParams() to be rendered
+   inside a Suspense boundary during production builds.
+========================================================== */
+
+export default function TransactionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-[#f6f8fb] text-sm text-slate-500">
+          Loading transactions...
+        </div>
+      }
+    >
+      <TransactionsPageContent />
+    </Suspense>
+  );
 }
