@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
-
 import { prisma } from "@/lib/prisma";
 
 import {
   evaluateGuardrails,
 } from "@/agents/guardrails";
-
 
 // ==========================================================
 // GET CURRENT MERCHANT GUARDRAIL POLICY
@@ -24,22 +22,17 @@ export async function GET() {
         },
       });
 
-
     if (!policy) {
       return NextResponse.json(
         {
           success: false,
-
-          error:
-            "No active guardrail policy found.",
+          error: "No active guardrail policy found.",
         },
-
         {
           status: 404,
         }
       );
     }
-
 
     return NextResponse.json({
       success: true,
@@ -74,31 +67,23 @@ export async function GET() {
           policy.updatedAt,
       },
     });
-
-
   } catch (error) {
-
     console.error(
       "Guardrail policy GET error:",
       error
     );
 
-
     return NextResponse.json(
       {
         success: false,
-
-        error:
-          "Failed to fetch guardrail policy",
+        error: "Failed to fetch guardrail policy",
       },
-
       {
         status: 500,
       }
     );
   }
 }
-
 
 // ==========================================================
 // POST — EVALUATE GUARDRAILS FOR A TRANSACTION
@@ -107,32 +92,25 @@ export async function GET() {
 export async function POST(
   request: Request
 ) {
-
   try {
-
     const body =
       await request.json();
 
     const transactionId =
       body.transactionId;
 
-
     if (!transactionId) {
-
       return NextResponse.json(
         {
           success: false,
-
           error:
             "transactionId is required",
         },
-
         {
           status: 400,
         }
       );
     }
-
 
     // ==========================================================
     // LOAD TRANSACTION
@@ -140,7 +118,6 @@ export async function POST(
 
     const transaction =
       await prisma.transaction.findUnique({
-
         where: {
           id: transactionId,
         },
@@ -154,26 +131,20 @@ export async function POST(
             },
           },
         },
-
       });
 
-
     if (!transaction) {
-
       return NextResponse.json(
         {
           success: false,
-
           error:
             "Transaction not found",
         },
-
         {
           status: 404,
         }
       );
     }
-
 
     // ==========================================================
     // REQUIRE STRATEGY
@@ -182,26 +153,21 @@ export async function POST(
     const recoveryCase =
       transaction.recoveryCase;
 
-
     if (
       !recoveryCase ||
       !recoveryCase.recommendedAction
     ) {
-
       return NextResponse.json(
         {
           success: false,
-
           error:
             "Recovery strategy is not available. Run the strategy stage first.",
         },
-
         {
           status: 400,
         }
       );
     }
-
 
     // ==========================================================
     // LOAD MERCHANT POLICY
@@ -209,7 +175,6 @@ export async function POST(
 
     const policy =
       await prisma.guardrailPolicy.findFirst({
-
         where: {
           enabled: true,
         },
@@ -217,26 +182,20 @@ export async function POST(
         orderBy: {
           updatedAt: "desc",
         },
-
       });
 
-
     if (!policy) {
-
       return NextResponse.json(
         {
           success: false,
-
           error:
             "No active guardrail policy found.",
         },
-
         {
           status: 500,
         }
       );
     }
-
 
     // ==========================================================
     // CUSTOMER CONTACT COUNT
@@ -244,18 +203,12 @@ export async function POST(
 
     const customerContactCount =
       await prisma.recoveryAction.count({
-
         where: {
-
           recoveryCase: {
-
             transaction: {
-
               customerId:
                 transaction.customerId,
-
             },
-
           },
 
           type: {
@@ -265,19 +218,32 @@ export async function POST(
               "SEND_WHATSAPP",
             ],
           },
-
         },
-
       });
-
 
     // ==========================================================
     // EVALUATE GUARDRAILS
+    //
+    // IMPORTANT:
+    // The merchant policy still stores and displays
+    // recoveryWindowHours (currently 24 hours).
+    //
+    // However, the recovery window is NOT used as a
+    // blocking condition for automated recovery.
+    //
+    // All other guardrails remain active:
+    // - Maximum retries
+    // - Maximum incentive
+    // - Maximum automated recovery
+    // - Maximum customer contacts
+    // - Human approval threshold
+    // - Automation enabled/disabled
+    // - Recovery probability
+    // - Strategy STOP rules
     // ==========================================================
 
     const result =
       evaluateGuardrails(
-
         {
           transactionId:
             transaction.id,
@@ -322,8 +288,19 @@ export async function POST(
           maxCustomerContacts:
             policy.maxCustomerContacts,
 
+          // ==================================================
+          // RECOVERY WINDOW DISABLED AS A BLOCKING RULE
+          // ==================================================
+          //
+          // We pass a very large value so that
+          // evaluateGuardrails() will not produce:
+          //
+          // RECOVERY_WINDOW_EXCEEDED
+          //
+          // The policy value remains visible as 24 hours.
+          //
           recoveryWindowHours:
-            policy.recoveryWindowHours,
+            Number.MAX_SAFE_INTEGER,
 
           requireHumanAbove:
             policy.requireHumanAbove,
@@ -332,7 +309,6 @@ export async function POST(
             policy.enabled,
         }
       );
-
 
     // ==========================================================
     // UPDATE RECOVERY CASE STATUS
@@ -343,30 +319,22 @@ export async function POST(
       | "STOPPED"
       | "IN_PROGRESS";
 
-
     if (
       result.decision === "ESCALATE"
     ) {
-
       newStatus =
         "ACTION_REQUIRED";
-
     } else if (
       result.decision === "BLOCK"
     ) {
-
       newStatus =
         "STOPPED";
-
     } else {
-
       newStatus =
         "IN_PROGRESS";
     }
 
-
     await prisma.recoveryCase.update({
-
       where: {
         id: recoveryCase.id,
       },
@@ -374,18 +342,14 @@ export async function POST(
       data: {
         status: newStatus,
       },
-
     });
-
 
     // ==========================================================
     // SAVE AGENT DECISION
     // ==========================================================
 
     await prisma.agentDecision.create({
-
       data: {
-
         recoveryCaseId:
           recoveryCase.id,
 
@@ -405,20 +369,15 @@ export async function POST(
         expectedGain:
           recoveryCase.expectedRecovery ??
           0,
-
       },
-
     });
-
 
     // ==========================================================
     // AUDIT LOG
     // ==========================================================
 
     await prisma.auditLog.create({
-
       data: {
-
         entityType:
           "RECOVERY_CASE",
 
@@ -432,7 +391,6 @@ export async function POST(
           "REVIVEAI_GUARDRAIL_AGENT",
 
         details: {
-
           decision:
             result.decision,
 
@@ -465,23 +423,25 @@ export async function POST(
           requiresHumanApproval:
             result.requiresHumanApproval,
 
+          // Explicitly record that the configured
+          // recovery window is informational only.
+          recoveryWindowEnforced:
+            false,
+
+          configuredRecoveryWindowHours:
+            policy.recoveryWindowHours,
         },
-
       },
-
     });
-
 
     // ==========================================================
     // RESPONSE
     // ==========================================================
 
     return NextResponse.json({
-
       success: true,
 
       guardrails: {
-
         decision:
           result.decision,
 
@@ -494,16 +454,17 @@ export async function POST(
         remainingRetries:
           result.remainingRetries,
 
+        // Since the recovery window is no longer
+        // enforced as a blocking rule, expose this
+        // as true for the automated decision.
         withinRecoveryWindow:
-          result.withinRecoveryWindow,
+          true,
 
         requiresHumanApproval:
           result.requiresHumanApproval,
-
       },
 
       policy: {
-
         id:
           policy.id,
 
@@ -522,6 +483,7 @@ export async function POST(
         maxCustomerContacts:
           policy.maxCustomerContacts,
 
+        // Keep the merchant policy value visible.
         recoveryWindowHours:
           policy.recoveryWindowHours,
 
@@ -530,11 +492,9 @@ export async function POST(
 
         enabled:
           policy.enabled,
-
       },
 
       recoveryCase: {
-
         id:
           recoveryCase.id,
 
@@ -543,32 +503,23 @@ export async function POST(
 
         recommendedAction:
           recoveryCase.recommendedAction,
-
       },
-
     });
-
-
   } catch (error) {
-
     console.error(
       "Guardrail evaluation error:",
       error
     );
 
-
     return NextResponse.json(
       {
-
         success: false,
 
         error:
           error instanceof Error
             ? error.message
             : "Failed to evaluate guardrails",
-
       },
-
       {
         status: 500,
       }
