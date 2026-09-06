@@ -128,16 +128,21 @@ export async function POST(request: Request) {
         amount: Math.round(transaction.amount * 100),
         currency: transaction.currency,
         description: `ReviveAI recovery for ${transaction.externalId}`,
+
         customer: {
           name: transaction.customer.name,
           email: transaction.customer.email,
-          contact: transaction.customer.phone ?? undefined,
+          contact:
+            transaction.customer.phone ?? undefined,
         },
+
         notify: {
           email: false,
           sms: false,
         },
+
         reminder_enable: false,
+
         notes: {
           reviveai_transaction_id: transaction.id,
           reviveai_external_id: transaction.externalId,
@@ -169,19 +174,24 @@ export async function POST(request: Request) {
     }
 
     /*
-     * Persist the action.
+     * Persist the recovery action.
      */
     await prisma.recoveryAction.create({
       data: {
         recoveryCaseId: recoveryCase.id,
         type: action,
+
         reason:
           recoveryCase.diagnosis ??
           "Recovery action selected by ReviveAI.",
+
         status: execution.status,
+
         amount: transaction.amount,
+
         expectedValue:
           recoveryCase.expectedRecovery ?? 0,
+
         executedAt: new Date(),
       },
     });
@@ -197,6 +207,7 @@ export async function POST(request: Request) {
         where: {
           id: transaction.id,
         },
+
         data: {
           retryCount: {
             increment: 1,
@@ -206,24 +217,27 @@ export async function POST(request: Request) {
     }
 
     /*
-     * STOP / HUMAN / normal execution states.
+     * Determine the new recovery case status.
+     *
+     * IMPORTANT:
+     * Using const here preserves the string-literal
+     * union so Prisma can correctly type-check the
+     * RecoveryStatus enum.
      */
-    let newStatus;
-
-    if (action === "STOP") {
-      newStatus = "STOPPED";
-    } else if (action === "HUMAN_ESCALATION") {
-      newStatus = "ACTION_REQUIRED";
-    } else if (execution.success) {
-      newStatus = "IN_PROGRESS";
-    } else {
-      newStatus = "FAILED";
-    }
+    const newStatus =
+      action === "STOP"
+        ? "STOPPED"
+        : action === "HUMAN_ESCALATION"
+        ? "ACTION_REQUIRED"
+        : execution.success
+        ? "IN_PROGRESS"
+        : "FAILED";
 
     await prisma.recoveryCase.update({
       where: {
         id: recoveryCase.id,
       },
+
       data: {
         status: newStatus,
         attempts: {
@@ -238,10 +252,14 @@ export async function POST(request: Request) {
     await prisma.agentDecision.create({
       data: {
         recoveryCaseId: recoveryCase.id,
+
         decision: "EXECUTE_RECOVERY_ACTION",
+
         reasoning: execution.message,
+
         confidence:
           recoveryCase.predictedProbability ?? 0,
+
         expectedGain:
           recoveryCase.expectedRecovery ?? 0,
       },
@@ -253,18 +271,28 @@ export async function POST(request: Request) {
     await prisma.auditLog.create({
       data: {
         entityType: "RECOVERY_CASE",
+
         entityId: recoveryCase.id,
+
         action: "RECOVERY_ACTION_EXECUTED",
+
         actor: "REVIVEAI_EXECUTOR",
+
         details: {
           action,
+
           status: execution.status,
+
           success: execution.success,
+
           message: execution.message,
+
           externalReference:
             execution.externalReference ?? null,
+
           paymentLink:
             execution.paymentLink ?? null,
+
           amount: transaction.amount,
         },
       },
@@ -288,14 +316,20 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error("Recovery execution error:", error);
+    console.error(
+      "Recovery execution error:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to execute recovery action.",
+        error:
+          "Failed to execute recovery action.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
