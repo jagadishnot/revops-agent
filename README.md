@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ REVIVEAI
+# ⚡ REVOPS-AGENT
 
 ### Autonomous Revenue Recovery Intelligence Agent
 
@@ -27,7 +27,7 @@
 
 ---
 
-## 🧠 What is ReviveAI?
+## 🧠 What is REVOPS-AGENT?
 
 **ReviveAI** is an autonomous revenue recovery agent designed to identify payment revenue that is at risk and intelligently determine how that revenue should be recovered.
 
