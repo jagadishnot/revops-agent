@@ -1,6 +1,9 @@
 FROM node:22-bookworm-slim
 
-# Install Python and required system packages
+# =========================================================
+# System dependencies
+# =========================================================
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     python3 \
@@ -8,41 +11,79 @@ RUN apt-get update && \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Create Python virtual environment
+
+# =========================================================
+# Python virtual environment
+# =========================================================
+
 RUN python3 -m venv /opt/venv
 
-# Make Python virtual environment the default
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Application directory
+
+# =========================================================
+# Application
+# =========================================================
+
 WORKDIR /app
 
-# Copy package files first for better Docker caching
+
+# =========================================================
+# Node dependencies
+# =========================================================
+
 COPY package*.json ./
 
-# Install Node dependencies
 RUN npm ci
 
-# Copy Python requirements
+
+# =========================================================
+# Python ML dependencies
+# =========================================================
+
 COPY requirements.txt ./
 
-# Install Python ML dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy complete application
+
+# =========================================================
+# Application source
+# =========================================================
+
 COPY . .
 
-# Generate Prisma Client
-RUN npx prisma generate
 
-# Build Next.js application
-RUN npm run build
+# =========================================================
+# Prisma
+#
+# Prisma 7 loads prisma.config.ts during generate.
+# The config requires DIRECT_URL, but the real database
+# URL must NEVER be stored in the Docker image.
+#
+# A temporary build-only URL is used here.
+# Render's real DIRECT_URL environment variable will
+# override this at runtime.
+# =========================================================
 
-# Render provides PORT at runtime
+RUN DIRECT_URL="postgresql://postgres:postgres@localhost:5432/postgres" \
+    npx prisma generate
+
+
+# =========================================================
+# Next.js production build
+# =========================================================
+
+RUN DIRECT_URL="postgresql://postgres:postgres@localhost:5432/postgres" \
+    npm run build
+
+
+# =========================================================
+# Runtime
+# =========================================================
+
 ENV NODE_ENV=production
 
 EXPOSE 3000
 
-# Start Next.js
 CMD ["sh", "-c", "npm start -- -H 0.0.0.0 -p ${PORT:-3000}"]
