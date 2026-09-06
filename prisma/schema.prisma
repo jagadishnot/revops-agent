@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  ABANDONED
+  EXPIRED
+}
+
+enum RecoveryStatus {
+  AT_RISK
+  ANALYZING
+  ACTION_REQUIRED
+  IN_PROGRESS
+  RECOVERED
+  FAILED
+  STOPPED
+}
+
+enum RecoveryActionType {
+  RETRY_PAYMENT
+  PAYMENT_LINK
+  SEND_EMAIL
+  SEND_SMS
+  SEND_WHATSAPP
+  OFFER_INCENTIVE
+  HUMAN_ESCALATION
+  STOP
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Customer {
+  id                 String        @id @default(cuid())
+  externalId         String        @unique
+  name               String
+  email              String
+  phone              String?
+  lifetimeValue      Float         @default(0)
+  totalTransactions  Int           @default(0)
+  successfulPayments Int           @default(0)
+  failedPayments     Int           @default(0)
+  abandonedCheckouts Int           @default(0)
+  preferredMethod    String?
+  customerSegment    String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  transactions       Transaction[]
+}
+
+model Transaction {
+  id                  String             @id @default(cuid())
+  externalId          String             @unique
+  customerId          String
+  amount              Float
+  currency            String             @default("INR")
+  status              TransactionStatus
+  failureReason       String?
+  paymentMethod       String?
+  retryCount          Int                @default(0)
+  checkoutDuration    Int?
+  abandoned           Boolean            @default(false)
+  recoveryProbability Float?
+  revenueAtRisk       Float              @default(0)
+  initialRevenueAtRisk Float              @default(0)
+  riskLevel           RiskLevel?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  customer            Customer           @relation(fields: [customerId], references: [id])
+  recoveryCase        RecoveryCase?
+}
+
+model RecoveryCase {
+  id                   String              @id @default(cuid())
+  transactionId        String              @unique
+  status               RecoveryStatus
+  diagnosis            String?
+  predictedProbability Float?
+  recommendedAction    RecoveryActionType?
+  expectedRecovery     Float?
+  actualRecovery       Float               @default(0)
+  attempts             Int                 @default(0)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  transaction          Transaction         @relation(fields: [transactionId], references: [id])
+  actions              RecoveryAction[]
+  decisions            AgentDecision[]
+}
+
+model RecoveryAction {
+  id             String             @id @default(cuid())
+  recoveryCaseId String
+  type           RecoveryActionType
+  reason         String
+  status         String
+  amount         Float?
+  expectedValue  Float?
+  executedAt     DateTime?
+  createdAt      DateTime           @default(now())
+
+  recoveryCase   RecoveryCase       @relation(fields: [recoveryCaseId], references: [id])
+}
+
+model AgentDecision {
+  id             String        @id @default(cuid())
+  recoveryCaseId String
+  decision       String
+  reasoning      String
+  confidence     Float?
+  expectedGain   Float?
+  createdAt      DateTime      @default(now())
+
+  recoveryCase   RecoveryCase @relation(fields: [recoveryCaseId], references: [id])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  entityType  String
+  entityId    String
+  action      String
+  actor       String
+  details     Json
+  createdAt   DateTime @default(now())
+}
+
+model GuardrailPolicy {
+  id                  String   @id @default(cuid())
+  name                String   @unique
+  maxRetries          Int      @default(2)
+  maxIncentivePercent Float    @default(5)
+  maxAutoRecovery     Float    @default(10000)
+  maxCustomerContacts Int      @default(2)
+  recoveryWindowHours Int      @default(24)
+  requireHumanAbove   Float    @default(10000)
+  enabled             Boolean  @default(true)
+  updatedAt           DateTime @updatedAt
+}

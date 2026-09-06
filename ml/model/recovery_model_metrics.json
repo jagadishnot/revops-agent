@@ -1,0 +1,12 @@
+{
+  "model": "RandomForestClassifier",
+  "dataset": "ml/recovery_evaluation_dataset.csv",
+  "samples": 3268,
+  "training_samples": 2614,
+  "testing_samples": 654,
+  "accuracy": 0.6009174311926605,
+  "precision": 0.524,
+  "recall": 0.47985347985347987,
+  "f1": 0.5009560229445507,
+  "roc_auc": 0.6374972359224328
+}

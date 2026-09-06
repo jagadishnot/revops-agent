@@ -1,0 +1,10 @@
+{
+  "samples": 9706,
+  "training_samples": 7764,
+  "testing_samples": 1942,
+  "accuracy": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1": 1.0,
+  "roc_auc": 1.0
+}
